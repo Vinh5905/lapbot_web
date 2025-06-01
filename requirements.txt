@@ -1,0 +1,8 @@
+Django
+django-cotton
+django-jazzmin
+django-tailwind
+django-tailwind[reload]
+together
+python-dotenv
+markdown
