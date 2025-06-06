@@ -3,6 +3,7 @@ django-cotton
 django-jazzmin
 django-tailwind
 django-tailwind[reload]
+django-vite
 together
 python-dotenv
 markdown

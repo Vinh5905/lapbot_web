@@ -1,6 +1,6 @@
 {% load static %} 
-{% load static tailwind_tags %}
-
+{% comment %} {% load static tailwind_tags %} {% endcomment %}
+{% load django_vite %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -11,7 +11,7 @@
         <meta http-equiv="X-UA-Compatible" content="ie=edge" />
 
         <!-- Tailwind CSS output file -->
-        {% tailwind_preload_css %} {% tailwind_css %}
+        {% comment %} <link rel="stylesheet" href="{% static "global/css/dist/styles.css" %}"> {% endcomment %}
 
         <!-- Chat event -->
         {% comment %} <script defer src="{% static 'chat/js/script.js' %}"></script> {% endcomment %}
@@ -28,9 +28,12 @@
         <!-- CSS global self-writed -->
         <link rel="stylesheet" href="{% static 'global/css/main.css' %}" />
         <link rel="stylesheet" href="{% static "global/css/shadcn.css" %}">
+
+        {% vite_hmr_client %}
+        {% vite_asset 'static/global/js/main.js' %}
     </head>
 
-    <body class="h-screen w-screen bg-teal-50 flex flex-col text-sm/7 font-montserrat text-default-black ">
+    <body class="h-screen w-screen bg-teal-50 flex flex-col text-sm/7 font-montserrat text-default-black font-medium">
         {% comment %} Header {% endcomment %}
         <nav id="header" class="h-16 w-full bg-teal-50 flex flex-row justify-between items-center px-6 py-2">
             <div class="h-full w-fit">
