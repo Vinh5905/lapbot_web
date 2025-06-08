@@ -7,3 +7,4 @@ django-vite
 together
 python-dotenv
 markdown
+psycopg2

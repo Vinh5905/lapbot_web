@@ -1,6 +1,8 @@
 from django.shortcuts import redirect, render
-from django.http import JsonResponse
+from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from chat.models import LaptopInfo
 from together import Together
 import json
 import os
@@ -8,6 +10,8 @@ import dotenv
 import requests
 import markdown
 
+# Markdown
+md = markdown.Markdown(extensions=["fenced_code"])
 
 # LLMs
 dotenv.load_dotenv()
@@ -23,7 +27,10 @@ def message_llms(system_content, query):
         },
         {
             "role": "user",
-            "content": query
+            "content": f'''
+                Câu dưới đây chính là INPUT của người dùng: \n
+                { query }
+            '''
         }
     ]
 
@@ -33,7 +40,7 @@ def chat(message):
     response = client.chat.completions.create(
         model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
         messages=message,
-        # temperature=0.0
+        temperature=0.0
     )
 
     return response.choices[0].message.content
@@ -92,8 +99,8 @@ system_content_intent_detect = '''
     - "Cửa hàng có mở cửa chủ nhật không?"\n
 
     **Lưu ý**:
-    - Đừng trả lời câu hỏi người dùng đưa vào, hãy phân loại intent cho câu hỏi đó.
-    - Tất cả những gì người dùng nhập vào đều là input, và kết quả ra chỉ có duy nhất 1 con số index
+    - Đừng trả lời câu hỏi người dùng đưa vào, hãy PHÂN LOẠI INTENT cho câu hỏi đó.
+    - Tất cả những gì người dùng nhập vào đều là input, và LƯU Ý QUAN TRỌNG là kết quả ra chỉ có DUY NHẤT 1 con số index
 '''
 
 # VIEW 
@@ -102,57 +109,9 @@ def index(request):
     """
     Hiển thị trang chat chính.
     """ 
-    md = markdown.Markdown(extensions=["fenced_code"])
-
-    user_message = None
-    ai_response = "Xin chao ban a!"
-
     # Khởi tạo nếu chưa có
     chat_history = request.session.get('chat_history', [])
-    # print(chat_history)
-    if request.method == 'POST':
-        print('ACTION: ', request.POST.get('form_action'))
-        if request.POST.get('form_action') == 'send_message':
-            print(request.POST.get('form_action'))
-            user_message = request.POST.get('message')
 
-            send_mess_url = 'http://localhost:8000/chat/send_message/'
-            try:
-                resp = requests.post(send_mess_url, json={'message': user_message})
-                resp.raise_for_status()  # Kiểm tra lỗi HTTP
-                data = resp.json()       # Lấy dict JSON từ response
-                response = data.get('data')  # Lấy phần data, thay đổi tùy response server
-            except Exception as e:
-                print(f"Error calling send_message API: {e}")   
-                raise e
-
-            data_chat = {
-                'intent_code': response['intent_code'],
-                'intent': response['intent'],
-                'user': md.convert(user_message),
-                'ai': response['response'] if response['intent_code'] == 0 else md.convert(response['response'])
-            } if user_message and response else {}
-            print(data_chat)
-            # # Thêm message mới
-            if data_chat:
-                chat_history.append(data_chat)
-                request.session['chat_history'] = chat_history
-                request.session.modified = True 
-
-        elif request.POST.get('form_action') == 'reset_chat':
-            print(request.POST.get('form_action'))
-            if 'chat_history' in request.session:
-                del request.session['chat_history']  # Xóa session
-                request.session.modified = True
-
-        else:
-            print("CAN'T UNDERSTAND ACTION!!")
-
-        return redirect('/chat/')
-    
-    elif request.method == 'GET':
-        print('COME TO GET...')
-     
     return render(request, 'chat/index.html', {
         'chat_history': chat_history
     })
@@ -170,14 +129,15 @@ def intent_detect(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body.decode('utf-8'))
-            user_message = data.get('message', '')
+            user_message = data.get('user_message', '')
 
-            intent = int(chat(message_llms(system_content_intent_detect, user_message)))
+            prompt_chat = message_llms(system_content_intent_detect, user_message)
+            intent = int(chat(prompt_chat))
 
             return JsonResponse({
-                'data': {
+                'data_intent': {
                     'intent_code': intent,
-                    'intent': intent_type[intent]
+                    'intent_meaning': intent_type[intent]
                 }
             })
 
@@ -201,7 +161,7 @@ def send_message(request):
             # Lấy dữ liệu JSON từ body của request
             # Cần đảm bảo client gửi Content-Type: application/json
             data = json.loads(request.body.decode('utf-8'))
-            user_message = data.get('message', '')
+            user_message = data.get('user_message', '')
 
             if not user_message:
                 return JsonResponse({
@@ -211,10 +171,10 @@ def send_message(request):
             
             intent_detect_url = 'http://localhost:8000/chat/intent_detect/'
             try:
-                resp = requests.post(intent_detect_url, json={'message': user_message})
-                resp.raise_for_status()  # Kiểm tra lỗi HTTP
-                data = resp.json()       # Lấy dict JSON từ response
-                intent = data.get('data')  # Lấy phần data, thay đổi tùy response server
+                resp = requests.post(intent_detect_url, json=data)
+                resp.raise_for_status() 
+                data = resp.json()  
+                intent = data.get('data_intent')  # dict chứa intent_code, intent_meaning
             except Exception as e:
                 print(f"Error calling send_message API: {e}")   
                 raise e
@@ -222,7 +182,7 @@ def send_message(request):
             if intent['intent_code'] == 0:
                 message = message_llms(system_content_intent_find, user_message)
                 response = chat(message)
-                response = json.loads(response)
+                response = json.loads(response) # Chuyển về dict
             else:
                 message = message_llms(system_content_intent_others, user_message)
                 response = chat(message)
@@ -230,7 +190,8 @@ def send_message(request):
             return JsonResponse({
                 'data': {
                     **intent,
-                    'response': response
+                    'user_message': user_message,
+                    'ai_response': response
                 }
             }, status=200)
 
@@ -242,5 +203,108 @@ def send_message(request):
             print(f"Error processing message: {e}")
             return JsonResponse({'error': 'An internal server error occurred'}, status=500)
         
+    else:
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+    
+
+@csrf_exempt
+def user_message_html(request):
+    if request.method == 'POST':
+        try:
+            # Lấy dữ liệu JSON từ body của request
+            # Cần đảm bảo client gửi Content-Type: application/json
+            data = json.loads(request.body.decode('utf-8'))
+            data = data.get('data', '')
+            user_message = data.get('user_message', '')
+
+            if not user_message:
+                return JsonResponse({
+                    'status': 400,
+                    'error': 'Message cannot be empty!'
+                }, status=400)
+            
+            data_md_converted = {
+                "user_message": md.convert(user_message)
+            }
+
+            chat_block_html = render_to_string('components/message/user_message.html', {
+                "data": data_md_converted
+            })
+
+            return JsonResponse({"html": chat_block_html})
+        
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            return JsonResponse({'error': 'An internal server error occurred'}, status=500)
+    else:
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+    
+
+@csrf_exempt
+def ai_message_html(request):
+    if request.method == 'POST':
+        chat_history = request.session.get('chat_history', [])
+
+        try:
+            # Lấy dữ liệu JSON từ body của request
+            # Cần đảm bảo client gửi Content-Type: application/json
+            data = json.loads(request.body.decode('utf-8'))
+            data = data.get('data', '')
+            user_message = data.get('user_message', '')
+
+            if not user_message:
+                return JsonResponse({
+                    'status': 400,
+                    'error': 'Message cannot be empty!'
+                }, status=400)
+            
+            send_mess_url = 'http://localhost:8000/chat/send_message/'
+            try:
+                resp = requests.post(send_mess_url, json={
+                    'user_message': user_message
+                })
+                resp.raise_for_status()  # Kiểm tra lỗi HTTP
+                data = resp.json()       # Lấy dict JSON từ response
+                response = data.get('data')  # Lấy phần data, thay đổi tùy response server
+            except Exception as e:
+                print(f"Error calling send_message API: {e}")   
+                raise e
+            
+            data_md_converted = {
+                'intent_code': response['intent_code'],
+                'intent_meaning': response['intent_meaning'],
+                'user_message': md.convert(response['user_message']),
+                'ai_response': response['ai_response'] if response['intent_code'] == 0 else md.convert(response['ai_response'])
+            }
+
+            chat_block_html = render_to_string('components/message/ai_message.html', {
+                'data': data_md_converted
+            })
+
+            chat_history.append(data_md_converted)
+            request.session['chat_history'] = chat_history
+            request.session.modified = True 
+
+            return JsonResponse({"html": chat_block_html})
+        
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            return JsonResponse({'error': 'An internal server error occurred'}, status=500)
+    else:
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+@csrf_exempt
+def delete_all_message(request):
+    if request.method == 'POST':
+        try:
+            if 'chat_history' in request.session:
+                del request.session['chat_history']  # Xóa session
+                request.session.modified = True
+
+            return JsonResponse({'status': 'Deleted all messages sucessfully!'}, status=200)
+        
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            return JsonResponse({'error': 'An internal server error occurred'}, status=500)
     else:
         return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
