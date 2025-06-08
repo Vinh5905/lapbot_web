@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     'django_cotton',
     'tailwind',
     'django_browser_reload',
-    'theme',
+    # 'theme',
     'django_vite'
 ]
 
@@ -61,7 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "django_browser_reload.middleware.BrowserReloadMiddleware",
+    # "django_browser_reload.middleware.BrowserReloadMiddleware",
 ]
 
 ROOT_URLCONF = 'chatbot.urls'
@@ -93,10 +93,20 @@ WSGI_APPLICATION = 'chatbot.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'postgres',
+        'USER': 'postgres',
+        'PASSWORD': '123456',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -137,7 +147,9 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static']
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 MEDIA = '/media/'
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
@@ -162,4 +174,10 @@ JAZZMIN_SETTINGS = {
 AUTH_USER_MODEL = 'userauths.User'
 
 # TAILWINCSS NAME
-TAILWIND_APP_NAME = 'theme'
+# TAILWIND_APP_NAME = 'theme'
+
+DJANGO_VITE = {
+  "default": {
+    "dev_mode": True
+  }
+}

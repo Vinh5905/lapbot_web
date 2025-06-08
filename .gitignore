@@ -1,1 +1,11 @@
+# Node modules
+node_modules
+
+# Package lock
+package-lock.json
+
+# Variable Environment
 .env
+
+# Production build
+vite_assets

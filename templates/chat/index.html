@@ -3,7 +3,7 @@
 <div id="chat-container" class="flex flex-col h-full w-full relative">
     {% comment %} Phần hỏi đáp chatbot {% endcomment %}
     <div id="chat-container_response" class="flex-1 flex overflow-y-auto overflow-auto pt-12 pb-16 ">
-        <div class="scrollToEnd w-4xl flex flex-col items-stretch gap-8 m-auto">
+        <div id='chat-container_response--body' class="scrollToEnd w-4xl flex flex-col items-stretch gap-8 m-auto">
             {% for chat in chat_history %}
                 <c-message.user-message :data='chat' class="text-sm/6"></c-message.user-message>
                 <c-message.ai-message :data='chat'></c-message.ai-message>
@@ -58,55 +58,6 @@
             <strong>Lapbot</strong> - AI thông minh tìm kiếm laptop phù hợp nhất với bạn
         </p>
     </div>
-
-    <script src="{% static 'chat/js/script.js' %}"></script>
 </div>
 
-{% comment %} Script xử lí slider  {% endcomment %}
-<script>
-    const mySwiper = new Swiper('.multiple-slide-carousel', {
-        loop: false,
-        slidesPerView: 3,
-        spaceBetween: 20,
-        padding: 0,
-        navigation: {
-            nextEl: '.multiple-slide-carousel .slider-button-next',
-            prevEl: '.multiple-slide-carousel .slider-button-prev',
-        },
-        breakpoints: {
-            0: {
-                slidesPerView: 3,
-                spaceBetween: 20,
-            },
-        },
-        on: {
-            init: () => {
-                updateNavButtons(this); // cập nhật trạng thái nút ngay khi khởi tạo
-            },
-            slideChange: () => {
-                updateNavButtons(this); // cập nhật mỗi khi chuyển slide
-            },
-        },
-    });
-
-    // Hàm cập nhật trạng thái enable/disable của nút prev/next
-    function updateNavButtons(swiperInstance) {
-        const prevButton = document.querySelector('.slider-button-prev');
-        const nextButton = document.querySelector('.slider-button-next');
-
-        // Disable nút prev nếu đang ở slide đầu
-        if (swiperInstance.isBeginning) {
-            prevButton.style.display = 'none';
-        } else {
-            prevButton.style.display = 'block';
-        }
-
-        // Disable nút next nếu đang ở slide cuối
-        if (swiperInstance.isEnd) {
-            nextButton.style.display = 'none';
-        } else {
-            nextButton.style.display = 'block';
-        }
-    }
-</script>
 {% endblock content %}

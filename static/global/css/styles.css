@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
 @import "tailwindcss";
 
 @import "tw-animate-css";
-@import "../../../static/global/css/shadcn.css";
-@import "../../../static/global/css/custom_tailwind.css";
+@import "../css/shadcn.css";
+@import "../css/custom_tailwind.css";
 
 /**
 * A catch-all path to Django template files, JavaScript, and Python files
@@ -13,6 +15,7 @@
 */
 
 @source "../../../**/*.{html,py,js}";
+
 
 @plugin '@tailwindcss/aspect-ratio';
 @plugin "@tailwindcss/typography";
