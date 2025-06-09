@@ -1,4 +1,4 @@
-import { postUserMessage, deleteAllMessages } from "./apis";
+import { postUserMessage, deleteAllMessages, postDataToPredictPrice } from "./apis";
 // import Swiper bundle with all modules installed
 import Swiper from 'swiper/bundle';
 // import styles bundle
@@ -165,3 +165,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         })
 })
+
+// Khi dùng Vite (hoặc bất kỳ bundler hiện đại nào như Webpack, ESBuild...), các hàm trong module ES6 
+// mặc định không được gán vào global scope (window)
+window.postDataToPredictPrice = postDataToPredictPrice

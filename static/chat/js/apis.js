@@ -54,6 +54,22 @@ async function postUserMessage(message, role='user') {
     }
 }
 
+async function postDataToPredictPrice() {
+    let endpoint = '/chat/predict_price/'
+    try {
+        const data = await customFetch(endpoint, {
+            method: 'POST',
+            // headers: {
+            //     'Content-Type': 'application/json',
+            // },
+        })
+
+        console.log(data)
+    } catch (error) {
+        console.error('Error loading chat block:', error);
+    }
+}
+
 async function deleteAllMessages() {
     let endpoint = '/chat/delete_all_message/'
 
@@ -75,4 +91,5 @@ async function deleteAllMessages() {
     }
 }
 
-export { postUserMessage, deleteAllMessages }
+
+export { postUserMessage, deleteAllMessages, postDataToPredictPrice }

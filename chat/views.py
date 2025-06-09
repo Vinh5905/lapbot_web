@@ -2,6 +2,7 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
+from django.forms.models import model_to_dict
 from chat.models import LaptopInfo
 from together import Together
 import json
@@ -9,6 +10,8 @@ import os
 import dotenv
 import requests
 import markdown
+from .predictor_service import predictor # Import instance đã được tải sẵn
+from .form_predict import LaptopPredictionFeaturesForm
 
 # Markdown
 md = markdown.Markdown(extensions=["fenced_code"])
@@ -303,6 +306,44 @@ def delete_all_message(request):
 
             return JsonResponse({'status': 'Deleted all messages sucessfully!'}, status=200)
         
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            return JsonResponse({'error': 'An internal server error occurred'}, status=500)
+    else:
+        return JsonResponse({'error': 'Only POST requests are allowed'}, status=405)
+
+@csrf_exempt
+def predict_price(request):
+    if request.method == 'POST':
+
+        try:
+            # data = json.loads(request.body.decode('utf-8'))
+            obj = LaptopInfo.objects.get(product_id='0220042002813__l265_20250402-105034')
+            data = model_to_dict(obj)
+
+            if not data:
+                return JsonResponse({
+                    'status': 400,
+                    'error': 'Data cannot be empty!'
+                }, status=400)
+            
+            form = LaptopPredictionFeaturesForm(data)  
+
+            if form.is_valid():
+                cleaned_data = form.cleaned_data
+                predict_result = predictor.predict(cleaned_data)
+
+                # Kiểm tra xem service có trả về lỗi không
+                if isinstance(predict_result, str) and ("Error" in predict_result):
+                    return JsonResponse({'error': predict_result}, status=500)
+                
+                return JsonResponse({
+                    'data': cleaned_data,
+                    'predict_price': float(predict_result)
+                }, status=200)
+            else:
+                return JsonResponse({'error': form.errors}, status=400)
+            
         except Exception as e:
             print(f"Error processing message: {e}")
             return JsonResponse({'error': 'An internal server error occurred'}, status=500)

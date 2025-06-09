@@ -8,3 +8,8 @@ together
 python-dotenv
 markdown
 psycopg2
+joblib
+numpy 
+pandas
+scikit-learn==1.6.1
+xgboost

@@ -11,48 +11,48 @@ class LaptopInfo(models.Model):
     cam_ung = models.IntegerField(blank=True, null=True)
     height_mm = models.FloatField(blank=True, null=True)
     url_path = models.CharField(max_length=128, blank=True, null=True)
-    material = models.CharField(max_length=50, blank=True, null=True)
-    storage_max_support = models.FloatField(blank=True, null=True)
-    storage_gb = models.FloatField(blank=True, null=True)
-    display_width = models.FloatField(blank=True, null=True)
+    material = models.CharField(max_length=50, blank=True, null=True) # categorical
+    storage_max_support = models.FloatField(blank=True, null=True) # numerical
+    storage_gb = models.FloatField(blank=True, null=True) # numerical
+    display_width = models.FloatField(blank=True, null=True) # numerical
     bluetooth_version = models.FloatField(blank=True, null=True)
     width_mm = models.FloatField(blank=True, null=True)
-    manufacturer = models.CharField(max_length=50, blank=True, null=True)
+    manufacturer = models.CharField(max_length=50, blank=True, null=True) # categorical
     cpu_max_speed = models.FloatField(blank=True, null=True)
     root_price = models.FloatField(blank=True, null=True)
-    cpu_threads = models.FloatField(blank=True, null=True)
-    cpu_cores = models.FloatField(blank=True, null=True)
-    ram_speed = models.FloatField(blank=True, null=True)
+    cpu_threads = models.FloatField(blank=True, null=True) # numerical
+    cpu_cores = models.FloatField(blank=True, null=True) # numerical
+    ram_speed = models.FloatField(blank=True, null=True) # numerical
     product_weight = models.FloatField(blank=True, null=True)
     discounted_price = models.FloatField(blank=True, null=True)
-    ram_type = models.CharField(max_length=50, blank=True, null=True)
+    ram_type = models.CharField(max_length=50, blank=True, null=True) # categorical
     refresh_rate = models.FloatField(blank=True, null=True)
-    cpu_speed = models.FloatField(blank=True, null=True)
+    cpu_speed = models.FloatField(blank=True, null=True) # numerical
     name = models.CharField(max_length=128, blank=True, null=True)
-    ram_storage = models.FloatField(blank=True, null=True)
+    ram_storage = models.FloatField(blank=True, null=True) # numerical
     is_installment = models.IntegerField(blank=True, null=True)
-    ram_slots = models.FloatField(blank=True, null=True)
-    os_version = models.CharField(max_length=50, blank=True, null=True)
-    battery_capacity = models.FloatField(blank=True, null=True)
-    laptop_color = models.CharField(max_length=50, blank=True, null=True)
+    ram_slots = models.FloatField(blank=True, null=True) # numerical
+    os_version = models.CharField(max_length=50, blank=True, null=True) # categorical
+    battery_capacity = models.FloatField(blank=True, null=True) # numerical
+    laptop_color = models.CharField(max_length=50, blank=True, null=True) # categorical
     cpu_model = models.CharField(max_length=50, blank=True, null=True)
     vga_type = models.CharField(max_length=50, blank=True, null=True)
     depth_mm = models.FloatField(blank=True, null=True)
     image = models.CharField(max_length=256, blank=True, null=True)
     vga_brand = models.CharField(max_length=50, blank=True, null=True)
-    product_id = models.CharField(max_length=50, primary_key=True, db_column='product_id') # Primary key
+    product_id = models.CharField(max_length=50, primary_key=True, db_column='product_id') # categorical # Primary key
     cpu_series = models.CharField(max_length=50, blank=True, null=True)
-    display_height = models.FloatField(blank=True, null=True)
+    display_height = models.FloatField(blank=True, null=True) # numerical
     vga_vram = models.FloatField(blank=True, null=True)
-    laptop_camera = models.CharField(max_length=50, blank=True, null=True)
+    laptop_camera = models.CharField(max_length=50, blank=True, null=True) # categorical
     display_size = models.FloatField(blank=True, null=True)
-    cpu_brand = models.CharField(max_length=50, blank=True, null=True)
+    cpu_brand = models.CharField(max_length=50, blank=True, null=True) # categorical
     hoc_tap_van_phong = models.IntegerField(blank=True, null=True)
-    laptop_sang_tao_noi_dung = models.IntegerField(blank=True, null=True)
+    laptop_sang_tao_noi_dung = models.IntegerField(blank=True, null=True) # categorical
     mong_nhe = models.IntegerField(blank=True, null=True)
     gaming = models.IntegerField(blank=True, null=True)
-    do_hoa_ky_thuat = models.IntegerField(blank=True, null=True)
-    cao_cap_sang_trong = models.IntegerField(blank=True, null=True)
+    do_hoa_ky_thuat = models.IntegerField(blank=True, null=True) # categorical
+    cao_cap_sang_trong = models.IntegerField(blank=True, null=True) # categorical
 
     class Meta:
         managed = False
