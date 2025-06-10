@@ -137,7 +137,7 @@ _llm_services = {
 
 _llm_models = {
     # Định nghĩa các model muốn sử dụng và chúng thuộc dịch vụ nào
-    "llama3-70b-instruct": ("together", "meta-llama/Llama-3-70B-Instruct-Turbo"),
+    "llama3-70b-instruct": ("together", "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"),
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash-preview-05-20"),
 }
 

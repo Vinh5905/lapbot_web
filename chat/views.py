@@ -110,77 +110,77 @@ def send_message(request):
 
             if intent['intent_code'] == 0:
                 response = llms.invoke(SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, user_message)
+                print(response)
                 response = extract_json_from_string(response)
                 response = json.loads(response) # Chuyển về dict
+                data_result = []
+
+                predict_price_url = 'http://localhost:8000/chat/predict_price/'
+
+                for item in response:
+                    recommendation = {}
+
+                    persona = item.get("persona", None)
+                    filters = item.get("filters", {})
+
+                    if (not persona) or (not filters):
+                        continue
+
+                    try:
+                        resp = requests.post(predict_price_url, json={
+                            'data': item['prediction_profile']
+                        })
+                        resp.raise_for_status() 
+                        data = resp.json()  
+                        predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
+                    except Exception as e:
+                        print(f"Error calling predict price API: {e}")   
+                        raise e
+                    
+                    try:
+                        # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
+                        laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                                .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                        'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                        'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                                .order_by('discounted_price') # Lấy 5 kết quả hàng đầu
+                        suggested_laptops = list(laptop_filters)
+                        
+                        usage_keys = [
+                            'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                            'hoc_tap_van_phong', 'mong_nhe', 'gaming'
+                        ]
+
+                        usage_keys_alias = {
+                            'laptop_sang_tao_noi_dung': 'Sáng tạo nội dung',
+                            'do_hoa_ky_thuat': 'Đồ họa - Kỹ thuật',
+                            'cao_cap_sang_trong': 'Cao cấp - Sang trọng',
+                            'hoc_tap_van_phong': 'Học tập - Văn phòng',
+                            'mong_nhe': 'Mỏng nhẹ',
+                            'gaming': 'Gaming'
+                        }
+
+                        for laptop in suggested_laptops:
+                            laptop['usage_needs'] = [usage_keys_alias[key] for key in usage_keys if laptop.get(key, 0) == 1]
+                        
+                            # (Tùy chọn) Xóa các key cũ để làm sạch output
+                        for key_to_remove in usage_keys:
+                            laptop.pop(key_to_remove, None) # .pop(key, None) sẽ không báo lỗi nếu key không tồn tại
+                        
+                    except Exception as e:
+                        # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                        print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                        suggested_laptops = []
+                    
+                    recommendation['persona'] = persona
+                    recommendation['general_price'] = predict_price
+                    recommendation['suggested_laptops'] = suggested_laptops
+
+                    data_result.append(recommendation)
+
             elif intent['intent_code'] == 1:
                 response = llms.invoke(SYSTEM_CONTENT_INTENT_OTHERS, user_message)
-
-            data_result = []
-
-            predict_price_url = 'http://localhost:8000/chat/predict_price/'
-
-            for item in response:
-                recommendation = {}
-
-                persona = item.get("persona", None)
-                filters = item.get("filters", {})
-
-                if (not persona) or (not filters):
-                    continue
-
-                try:
-                    resp = requests.post(predict_price_url, json={
-                        'data': item['prediction_profile']
-                    })
-                    resp.raise_for_status() 
-                    data = resp.json()  
-                    predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
-                except Exception as e:
-                    print(f"Error calling predict price API: {e}")   
-                    raise e
-                
-                try:
-                    # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
-                    laptop_filters = LaptopInfo.objects.filter(**filters)\
-                                                            .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
-                                                                    'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
-                                                                    'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
-                                                            .order_by('discounted_price') # Lấy 5 kết quả hàng đầu
-                    suggested_laptops = list(laptop_filters)
-                    
-                    usage_keys = [
-                        'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
-                        'hoc_tap_van_phong', 'mong_nhe', 'gaming'
-                    ]
-
-                    usage_keys_alias = {
-                        'laptop_sang_tao_noi_dung': 'Sáng tạo nội dung',
-                        'do_hoa_ky_thuat': 'Đồ họa - Kỹ thuật',
-                        'cao_cap_sang_trong': 'Cao cấp - Sang trọng',
-                        'hoc_tap_van_phong': 'Học tập - Văn phòng',
-                        'mong_nhe': 'Mỏng nhẹ',
-                        'gaming': 'Gaming'
-                    }
-
-                    for laptop in suggested_laptops:
-                        laptop['usage_needs'] = [usage_keys_alias[key] for key in usage_keys if laptop.get(key, 0) == 1]
-                    
-                        # (Tùy chọn) Xóa các key cũ để làm sạch output
-                    for key_to_remove in usage_keys:
-                        laptop.pop(key_to_remove, None) # .pop(key, None) sẽ không báo lỗi nếu key không tồn tại
-                    
-                except Exception as e:
-                    # Bắt các lỗi có thể xảy ra do filter không hợp lệ
-                    print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
-                    suggested_laptops = []
-                
-                recommendation['persona'] = persona
-                recommendation['general_price'] = predict_price
-                recommendation['suggested_laptops'] = suggested_laptops
-
-                data_result.append(recommendation)
-            
-            print(data_result)
+                data_result = response
 
             return JsonResponse({
                 'data': {
