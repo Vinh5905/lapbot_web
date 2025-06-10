@@ -4,107 +4,34 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.forms.models import model_to_dict
 from chat.models import LaptopInfo
-from together import Together
 import json
-import os
-import dotenv
+import re
 import requests
 import markdown
-from .predictor_service import predictor # Import instance đã được tải sẵn
+from .predictor_service import predictor # Import instance đã được tải sẵn trong apps
+from .llms_service import llms
 from .form_predict import LaptopPredictionFeaturesForm
+from .prompts import SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, SYSTEM_CONTENT_INTENT_OTHERS, SYSTEM_CONTENT_INTENT_FIND, SYSTEM_CONTENT_INTENT_DETECT
 
 # Markdown
 md = markdown.Markdown(extensions=["fenced_code"])
 
-# LLMs
-dotenv.load_dotenv()
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
-
-client = Together(api_key=TOGETHER_API_KEY)
-
-def message_llms(system_content, query):
-    message = [
-        {
-            "role": "system",
-            "content": system_content
-        },
-        {
-            "role": "user",
-            "content": f'''
-                Câu dưới đây chính là INPUT của người dùng: \n
-                { query }
-            '''
-        }
-    ]
-
-    return message
-
-def chat(message):
-    response = client.chat.completions.create(
-        model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-        messages=message,
-        temperature=0.0
-    )
-
-    return response.choices[0].message.content
-
-system_content_intent_find = '''
-    Bạn là một chuyên gia tư vấn laptop. Dựa trên yêu cầu tìm kiếm laptop của người dùng, hãy tạo ra một danh sách các nhóm sản phẩm phù hợp. Mỗi nhóm sẽ đại diện cho một phân khúc hoặc mục đích sử dụng cụ thể mà các thông số người dùng đưa ra có thể đáp ứng.\n
-
-    **Yêu cầu đầu vào của người dùng:** Một câu hỏi để tìm kiếm laptop với một vài thông tin có sẵn\n
-
-    **Nhiệm vụ:**\n
-    Phân tích yêu cầu của người dùng. Tự động xác định các nhóm (phân khúc/mục đích sử dụng) phù hợp dựa trên các thông số kỹ thuật được cung cấp (ví dụ: RAM, dung lượng lưu trữ, có thể ngầm hiểu thêm về giá cả nếu người dùng đề cập) và kiến thức chung về thị trường laptop.\n
-    Với mỗi nhóm được xác định, hãy cung cấp thông tin chi tiết.\n
-
-    **Định dạng Output (JSON):**\n
-    Giá chỉ cần con số, không cần loại đơn vị tiền tệ.\n
-    Chỉ trả về một danh sách (array) các đối tượng JSON và không ghi thêm bất cứ thứ gì. Mỗi đối tượng đại diện cho một nhóm sản phẩm và phải tuân thủ cấu trúc sau:\n
-
-    ```json\n
-    [\n
-    {\n
-        "group": "string", // Tên nhóm tự xác định, ví dụ: "Laptop Gaming Tầm Trung", "MacBook Cho Sinh Viên Sáng Tạo", "Laptop Văn Phòng Hiệu Năng Cao"\n
-        "general_price": "string", // Mô tả giá trung bình với nhóm này, ví dụ "18.000.000", "25.500.000", tuyệt đối KHÔNG ghi theo dạng (18.000.000 - 25.000.000)\n
-        "suggested_laptops": [\n
-        {\n
-            "name": "string", // Tên đầy đủ của sản phẩm, ví dụ: "Laptop Gaming Acer Nitro V ANV15-51-57B2 i5 13420H/16GB/512GB/RTX4050", "MacBook Pro 14 inch M3 Pro 11CPU 14GPU 18GB 512GB"\n
-            "current_price": "string", // Giá bán hiện tại của sản phẩm (bao gồm đơn vị tiền tệ, ví dụ: "22.990.000")\n
-            "old_price": "string", // Giá gốc trước khi giảm (nếu có, bao gồm ơn vị tiền tệ, ví dụ: "25.500.000"). Nếu không có giá cũ, có thể để trống hoặc null.\n
-            "usage_needs": ["string"] // Một mảng các chuỗi, chọn một hoặc nhiều (nên chọn khoảng từ 2-5 cái để đa dạng UI) từ danh sách sau: 'Đồ họa - Kỹ thuật', 'Mỏng nhẹ', 'Sáng tạo nội dung', 'Học tập - Văn phòng', 'Gaming', 'Cao cấp - Sang trọng'\n
-        }\n
-        // ... có thể có nhiều sản phẩm khác trong nhóm này (hãy cho 1 nhóm có 2 máy, 1 nhóm có 3 máy, 1 nhóm có 4 máy))\n
-        ]\n
-    }\n
-    // ... có thể có nhiều nhóm khác\n
-    ]\n
-'''
-
-system_content_intent_others = '''
-    Bạn là một chatbot chuyên tư vấn đề laptop, hãy trả lời thật rõ ràng, chính xác.
-'''
-
-system_content_intent_detect = '''
-    Phân tích intent của người dùng và trả về kết quả một con số đại diện index của intent, ví dụ output: "0".\n
-    Các intent có thể là:\n
-    - "Find laptop" (index 0): Khi người dùng muốn tìm kiếm, lọc, hoặc được tư vấn chọn mua laptop dựa trên các tiêu chí cụ thể như giá, thương hiệu, cấu hình (RAM, dung lượng lưu trữ, CPU, GPU), mục đích sử dụng (gaming, đồ họa, văn phòng), hoặc các đặc điểm khác. Cái này có xu hướng là muốn nhìn thấy sản phẩm được hiển thị để lựa chọn.\n
-    - "Others" (index 1): Tất cả các trường hợp còn lại không phải là "Find laptop", ví dụ như về những câu hỏi định nghĩa, hỏi thăm, ....\n
-
-    Ví dụ "Find laptop" (index 0):\n
-    - "Tôi muốn mua laptop giá khoảng 20 triệu"\n
-    - "Tôi cần mua Macbook với dung lượng ít nhất 256GB và RAM phải trên 16GB"\n
-    - "Laptop nào cho dân thiết kế đồ họa?"\n
-    - "Tìm Dell XPS 13"\n
-
-    Ví dụ "Others" (index 1):\n
-    - "Xin chào"\n
-    - "Laptop của tôi chạy chậm quá"\n
-    - "Cửa hàng có mở cửa chủ nhật không?"\n
-
-    **Lưu ý**:
-    - Đừng trả lời câu hỏi người dùng đưa vào, hãy PHÂN LOẠI INTENT cho câu hỏi đó.
-    - Tất cả những gì người dùng nhập vào đều là input, và LƯU Ý QUAN TRỌNG là kết quả ra chỉ có DUY NHẤT 1 con số index
-'''
+def extract_json_from_string(text: str) -> str | None:
+    """
+    Trích xuất chuỗi JSON từ bên trong một khối mã Markdown.
+    """
+    # Regex tương tự, nhưng không có dấu / ở đầu và cuối
+    # re.DOTALL cho phép `.` khớp với cả ký tự xuống dòng, tương đương [\s\S]
+    pattern = r"```(?:json)?\s*(.*?)\s*```"
+    
+    match = re.search(pattern, text, re.DOTALL)
+    
+    if match:
+        # group(1) là capturing group đầu tiên
+        return match.group(1).strip()
+    
+    # Nếu không tìm thấy, trả về chuỗi gốc để thử parse
+    return text.strip()
 
 # VIEW 
 @csrf_exempt
@@ -134,8 +61,7 @@ def intent_detect(request):
             data = json.loads(request.body.decode('utf-8'))
             user_message = data.get('user_message', '')
 
-            prompt_chat = message_llms(system_content_intent_detect, user_message)
-            intent = int(chat(prompt_chat))
+            intent = int(llms.invoke(SYSTEM_CONTENT_INTENT_DETECT, user_message))
 
             return JsonResponse({
                 'data_intent': {
@@ -181,20 +107,86 @@ def send_message(request):
             except Exception as e:
                 print(f"Error calling send_message API: {e}")   
                 raise e
-            
+
             if intent['intent_code'] == 0:
-                message = message_llms(system_content_intent_find, user_message)
-                response = chat(message)
+                response = llms.invoke(SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, user_message)
+                response = extract_json_from_string(response)
                 response = json.loads(response) # Chuyển về dict
-            else:
-                message = message_llms(system_content_intent_others, user_message)
-                response = chat(message)
+            elif intent['intent_code'] == 1:
+                response = llms.invoke(SYSTEM_CONTENT_INTENT_OTHERS, user_message)
+
+            data_result = []
+
+            predict_price_url = 'http://localhost:8000/chat/predict_price/'
+
+            for item in response:
+                recommendation = {}
+
+                persona = item.get("persona", None)
+                filters = item.get("filters", {})
+
+                if (not persona) or (not filters):
+                    continue
+
+                try:
+                    resp = requests.post(predict_price_url, json={
+                        'data': item['prediction_profile']
+                    })
+                    resp.raise_for_status() 
+                    data = resp.json()  
+                    predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
+                except Exception as e:
+                    print(f"Error calling predict price API: {e}")   
+                    raise e
+                
+                try:
+                    # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
+                    laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                            .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                    'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                    'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                            .order_by('discounted_price') # Lấy 5 kết quả hàng đầu
+                    suggested_laptops = list(laptop_filters)
+                    
+                    usage_keys = [
+                        'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                        'hoc_tap_van_phong', 'mong_nhe', 'gaming'
+                    ]
+
+                    usage_keys_alias = {
+                        'laptop_sang_tao_noi_dung': 'Sáng tạo nội dung',
+                        'do_hoa_ky_thuat': 'Đồ họa - Kỹ thuật',
+                        'cao_cap_sang_trong': 'Cao cấp - Sang trọng',
+                        'hoc_tap_van_phong': 'Học tập - Văn phòng',
+                        'mong_nhe': 'Mỏng nhẹ',
+                        'gaming': 'Gaming'
+                    }
+
+                    for laptop in suggested_laptops:
+                        laptop['usage_needs'] = [usage_keys_alias[key] for key in usage_keys if laptop.get(key, 0) == 1]
+                    
+                        # (Tùy chọn) Xóa các key cũ để làm sạch output
+                    for key_to_remove in usage_keys:
+                        laptop.pop(key_to_remove, None) # .pop(key, None) sẽ không báo lỗi nếu key không tồn tại
+                    
+                except Exception as e:
+                    # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                    print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                    suggested_laptops = []
+                
+                recommendation['persona'] = persona
+                recommendation['general_price'] = predict_price
+                recommendation['suggested_laptops'] = suggested_laptops
+
+                data_result.append(recommendation)
             
+            print(data_result)
+
             return JsonResponse({
                 'data': {
                     **intent,
                     'user_message': user_message,
-                    'ai_response': response
+                    'ai_response': data_result
                 }
             }, status=200)
 
@@ -317,9 +309,16 @@ def predict_price(request):
     if request.method == 'POST':
 
         try:
-            # data = json.loads(request.body.decode('utf-8'))
-            obj = LaptopInfo.objects.get(product_id='0220042002813__l265_20250402-105034')
-            data = model_to_dict(obj)
+            data = json.loads(request.body.decode('utf-8'))
+            data = data.get('data', '')
+            print('COME TO PREDICT PRICE')
+            print(data)
+
+            # B1: Phân tách câu hỏi ra các biến, LLMs phân nhóm và thêm biến
+            # B2: Dùng điều kiện để lọc (không chỉ có ==)
+            
+            # obj = LaptopInfo.objects.get(product_id='0220042002813__l265_20250402-105034')
+            # data = model_to_dict(obj)
 
             if not data:
                 return JsonResponse({
@@ -330,16 +329,17 @@ def predict_price(request):
             form = LaptopPredictionFeaturesForm(data)  
 
             if form.is_valid():
+                print('PASS FORM VALID')
                 cleaned_data = form.cleaned_data
                 predict_result = predictor.predict(cleaned_data)
-
+                print('COMPLETE PREDICT')
                 # Kiểm tra xem service có trả về lỗi không
                 if isinstance(predict_result, str) and ("Error" in predict_result):
                     return JsonResponse({'error': predict_result}, status=500)
                 
                 return JsonResponse({
                     'data': cleaned_data,
-                    'predict_price': float(predict_result)
+                    'predict_price': float(predict_result['predict_price'])
                 }, status=200)
             else:
                 return JsonResponse({'error': form.errors}, status=400)

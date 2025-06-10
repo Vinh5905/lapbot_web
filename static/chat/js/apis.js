@@ -46,6 +46,8 @@ async function postUserMessage(message, role='user') {
                 }
             },
         });
+
+        console.log(data)
         
         return data
 

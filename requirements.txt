@@ -5,6 +5,7 @@ django-tailwind
 django-tailwind[reload]
 django-vite
 together
+google-genai
 python-dotenv
 markdown
 psycopg2

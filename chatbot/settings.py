@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
 
     # Custom apps
     'core',
@@ -133,13 +134,17 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
 
-USE_I18N = True
+USE_I18N = True # Kích hoạt hệ thống dịch thuật/quốc tế hóa
+# USE_L10N = True # Kích hoạt hệ thống định dạng
+# USE_THOUSAND_SEPARATOR = True # Cho phép sử dụng dấu phân cách hàng nghìn
 
 USE_TZ = True
+
+# LANGUAGE_CODE = 'vi'  # Ngôn ngữ của trang web
 
 
 # Static files (CSS, JavaScript, Images)
@@ -177,7 +182,7 @@ AUTH_USER_MODEL = 'userauths.User'
 # TAILWIND_APP_NAME = 'theme'
 
 DJANGO_VITE = {
-  "default": {
-    "dev_mode": True
-  }
+    "default": {
+        "dev_mode": True
+    }
 }

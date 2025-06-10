@@ -1,4 +1,6 @@
 import { postUserMessage, deleteAllMessages, postDataToPredictPrice } from "./apis";
+import { formatCurrency } from '../../global/js/utils'
+
 // import Swiper bundle with all modules installed
 import Swiper from 'swiper/bundle';
 // import styles bundle
@@ -98,6 +100,14 @@ function updateNavButtons(swiperInstance) {
     }
 }
 
+function changeStyleCurrency(element = document) {
+    const allPrice = element.querySelectorAll('.price_vnd')
+
+    allPrice.forEach(element => {
+        element.innerHTML = formatCurrency(parseInt(element.innerHTML))
+    });
+}
+
 async function appendMessageBlock(message, role='user') {
     const parentContainer = document.getElementById('chat-container_response--body')
 
@@ -110,6 +120,7 @@ async function appendMessageBlock(message, role='user') {
 
     if (role == 'ai') {
         initSwiper()
+        changeStyleCurrency(container)
     }
 }
 
@@ -136,6 +147,9 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // Load swiper nếu đang ở session
         initSwiper()
+    
+    // Load price currency lần đầu
+        changeStyleCurrency()
 
     // Tạo block user message khi button form click
         const sendMessageButton = document.getElementById('chat-container_input--button')
