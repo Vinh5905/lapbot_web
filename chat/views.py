@@ -137,13 +137,25 @@ def send_message(request):
                         print(f"Error calling predict price API: {e}")   
                         raise e
                     
+                    # Nếu có giá dự đoán hợp lệ, thêm điều kiện lọc theo giá
+                    if predict_price is not None:
+                        price_range = 5000000  # 5 triệu đồng
+                        
+                        # Thêm điều kiện giá vào dictionary `filters`
+                        filters['discounted_price__gte'] = predict_price - price_range
+                        filters['discounted_price__lte'] = predict_price + price_range
+                        
+                        # Đảm bảo giá không bị âm
+                        if filters['discounted_price__gte'] < 0:
+                            filters['discounted_price__gte'] = 0
+                    
                     try:
                         # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
                         laptop_filters = LaptopInfo.objects.filter(**filters)\
                                                                 .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
                                                                         'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
                                                                         'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
-                                                                .order_by('discounted_price') # Lấy 5 kết quả hàng đầu
+                                                                .order_by('discounted_price')
                         suggested_laptops = list(laptop_filters)
                         
                         usage_keys = [

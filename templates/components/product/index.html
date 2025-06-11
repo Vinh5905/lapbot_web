@@ -1,6 +1,8 @@
 {% comment %} {% load humanize %}
 <!-- TẢI BỘ FILTER HUMANIZE VÀO TEMPLATE -->
-{% endcomment %} {% load static %}
+{% endcomment %} 
+ {% load static %}
+ {% load random_images %}
 
 <c-vars class=""></c-vars>
 
@@ -9,7 +11,7 @@
     class="bg-white rounded-2xl flex flex-col justify-start items-center w-[16rem] h-[25rem] shadow-full-2 m-auto {{ class }}"
 >
     <div class="flex justify-center items-center">
-        <img src="{% static "global/img/laptop_demo.jpg" %}" alt="Laptop" class="w-full aspect-[4/3] object-contain">
+        <img src="{% random_demo_laptop_image %}" alt="Laptop" class="w-full aspect-[4/3] object-contain">
     </div>
 
     <div class="flex-1 flex flex-col justify-start gap-2 px-4 py-2">
