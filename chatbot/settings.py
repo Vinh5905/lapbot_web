@@ -24,17 +24,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+uhb)49mm2!qyhuw+c6$etbv=87xvwdifc&11_%%4_1jk3w3(!'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-+uhb)49mm2!qyhuw+c6$etbv=87xvwdifc&11_%%4_1jk3w3(!')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = []
+# RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+# if RENDER_EXTERNAL_HOSTNAME:
+#     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    # Deploy
+    'whitenoise.runserver_nostatic', # Phải ở trên cùng
+
     'jazzmin',
 
     'django.contrib.admin',
@@ -44,6 +50,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
+    
+    # Deploy
+    'corsheaders', # Thêm corsheaders
 
     # Custom apps
     'core',
@@ -60,7 +69,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Đặt ngay sau SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # Đặt trước CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -159,7 +170,11 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
+    BASE_DIR / "vite_assets"
 ]
+
+# Tối ưu hóa việc lưu trữ của Whitenoise
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA = '/media/'
 MEDIA_ROOT = BASE_DIR / 'mediafiles'
@@ -191,3 +206,6 @@ DJANGO_VITE = {
         "dev_mode": True
     }
 }
+
+# Cung cấp một giá trị mặc định cho môi trường development.
+INTERNAL_API_BASE_URL = os.getenv('INTERNAL_API_BASE_URL', 'http://localhost:8000')
