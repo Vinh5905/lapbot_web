@@ -14,3 +14,7 @@ numpy
 pandas
 scikit-learn==1.6.1
 xgboost
+
+gunicorn # WSGI server cho production
+whitenoise # Phục vụ file static hiệu quả
+django-cors-headers  # Xử lý vấn đề CORS (vẫn cần thiết nếu bạn có domain riêng cho frontend sau này)

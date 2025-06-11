@@ -3,6 +3,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.forms.models import model_to_dict
+from django.conf import settings # Import settings
 from chat.models import LaptopInfo
 import json
 import re
@@ -12,6 +13,11 @@ from .predictor_service import predictor # Import instance đã được tải s
 from .llms_service import llms
 from .form_predict import LaptopPredictionFeaturesForm
 from .prompts import SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, SYSTEM_CONTENT_INTENT_OTHERS, SYSTEM_CONTENT_INTENT_FIND, SYSTEM_CONTENT_INTENT_DETECT
+from urllib.parse import urljoin
+
+# API
+# Lấy base URL từ settings
+api_base_url = settings.INTERNAL_API_BASE_URL
 
 # Markdown
 md = markdown.Markdown(extensions=["fenced_code"])
@@ -98,7 +104,7 @@ def send_message(request):
                     'error': 'Message cannot be empty!'
                 }, status=400)
             
-            intent_detect_url = 'http://localhost:8000/chat/intent_detect/'
+            intent_detect_url = urljoin(api_base_url, '/chat/intent_detect/')
             try:
                 resp = requests.post(intent_detect_url, json=data)
                 resp.raise_for_status() 
@@ -115,7 +121,7 @@ def send_message(request):
                 response = json.loads(response) # Chuyển về dict
                 data_result = []
 
-                predict_price_url = 'http://localhost:8000/chat/predict_price/'
+                predict_price_url = urljoin(api_base_url, '/chat/predict_price/')
 
                 for item in response:
                     recommendation = {}
@@ -265,7 +271,7 @@ def ai_message_html(request):
                     'error': 'Message cannot be empty!'
                 }, status=400)
             
-            send_mess_url = 'http://localhost:8000/chat/send_message/'
+            send_mess_url = urljoin(api_base_url, '/chat/send_message/')
             try:
                 resp = requests.post(send_mess_url, json={
                     'user_message': user_message
@@ -323,14 +329,6 @@ def predict_price(request):
         try:
             data = json.loads(request.body.decode('utf-8'))
             data = data.get('data', '')
-            print('COME TO PREDICT PRICE')
-            print(data)
-
-            # B1: Phân tách câu hỏi ra các biến, LLMs phân nhóm và thêm biến
-            # B2: Dùng điều kiện để lọc (không chỉ có ==)
-            
-            # obj = LaptopInfo.objects.get(product_id='0220042002813__l265_20250402-105034')
-            # data = model_to_dict(obj)
 
             if not data:
                 return JsonResponse({
