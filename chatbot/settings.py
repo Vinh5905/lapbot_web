@@ -29,7 +29,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-+uhb)49mm2!qyhuw+c6$e
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 # RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 # if RENDER_EXTERNAL_HOSTNAME:
 #     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -170,11 +170,17 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
-    BASE_DIR / "vite_assets"
+    BASE_DIR / 'vite_assets',
 ]
 
-# Tối ưu hóa việc lưu trữ của Whitenoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Cấu hình cho django-vite
+#    Đường dẫn đến thư mục chứa kết quả build của Vite (nơi có manifest.json).
+DJANGO_VITE_ASSETS_PATH = BASE_DIR / "vite_assets"
+#    Tự động bật/tắt chế độ dev của Vite dựa trên DEBUG của Django.
+DJANGO_VITE_DEV_MODE = os.environ.get('DEBUG', 'False').lower() == 'true'
+
+# # Tối ưu hóa việc lưu trữ của Whitenoise
+# STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA = '/media/'
 MEDIA_ROOT = BASE_DIR / 'mediafiles'

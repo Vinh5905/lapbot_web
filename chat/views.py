@@ -10,9 +10,10 @@ import re
 import requests
 import markdown
 from .predictor_service import predictor # Import instance đã được tải sẵn trong apps
+from .intent_classifier import classifier
 from .llms_service import llms
 from .form_predict import LaptopPredictionFeaturesForm
-from .prompts import SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, SYSTEM_CONTENT_INTENT_OTHERS, SYSTEM_CONTENT_INTENT_FIND, SYSTEM_CONTENT_INTENT_DETECT
+from .prompts import SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, SYSTEM_CONTENT_EXTRACT_BUDGET, SYSTEM_CONTENT_EXTRACT_RECOMMEND_USAGE
 from urllib.parse import urljoin
 
 # API
@@ -39,6 +40,30 @@ def extract_json_from_string(text: str) -> str | None:
     # Nếu không tìm thấy, trả về chuỗi gốc để thử parse
     return text.strip()
 
+def change_usage_alias(suggested_laptops):
+    usage_keys = [
+        'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+        'hoc_tap_van_phong', 'mong_nhe', 'gaming'
+    ]
+
+    usage_keys_alias = {
+        'laptop_sang_tao_noi_dung': 'Sáng tạo nội dung',
+        'do_hoa_ky_thuat': 'Đồ họa - Kỹ thuật',
+        'cao_cap_sang_trong': 'Cao cấp - Sang trọng',
+        'hoc_tap_van_phong': 'Học tập - Văn phòng',
+        'mong_nhe': 'Mỏng nhẹ',
+        'gaming': 'Gaming'
+    }
+
+    for idx, laptop in enumerate(suggested_laptops):
+        suggested_laptops[idx]['usage_needs'] = [usage_keys_alias[key] for key in usage_keys if laptop.get(key, 0) == 1]
+
+        # (Tùy chọn) Xóa các key cũ để làm sạch output
+        for key_to_remove in usage_keys:
+            suggested_laptops[idx].pop(key_to_remove, None) # .pop(key, None) sẽ không báo lỗi nếu key không tồn tại
+    
+    return suggested_laptops
+
 # VIEW 
 @csrf_exempt
 def index(request):
@@ -57,9 +82,15 @@ def intent_detect(request):
     """
     Model trả về intent message của người dùng để phân cách trả lời
     """
+    # intent_type = {
+    #     0: 'intent_recommend_budget',
+    #     1: 'intent_recommend_usage',
+    #     2: 'intent_tech_detail'
+    # }
     intent_type = {
-        0: 'Find laptop',
-        1: 'Others',
+        0: 'Ngân sách',
+        1: 'Nhu cầu sử dụng',
+        2: 'Thông số kỹ thuật'
     }
 
     if request.method == 'POST':
@@ -67,13 +98,30 @@ def intent_detect(request):
             data = json.loads(request.body.decode('utf-8'))
             user_message = data.get('user_message', '')
 
-            intent = int(llms.invoke(SYSTEM_CONTENT_INTENT_DETECT, user_message))
+            # intent = int(llms.invoke(SYSTEM_CONTENT_INTENT_DETECT, user_message))
 
+            # return JsonResponse({
+            #     'data_intent': {
+            #         'intent_code': intent,
+            #         'intent_meaning': intent_type[intent]
+            #     }
+            # })
+
+            intent = classifier.classifier(user_message) # trả về dạng [0 0 0]
+            print(intent)
+
+            data_intent = []
+            for idx in range(len(intent)):
+                if intent[idx] == 1:
+                    data_intent.append({
+                        'intent_code': idx,
+                        'intent_meaning': intent_type[idx]
+                    })
+            
+            print('INTENT: ', data_intent)
+                
             return JsonResponse({
-                'data_intent': {
-                    'intent_code': intent,
-                    'intent_meaning': intent_type[intent]
-                }
+                'data': data_intent
             })
 
         except json.JSONDecodeError:
@@ -90,6 +138,18 @@ def send_message(request):
     """
     Xử lý tin nhắn từ người dùng (gửi qua AJAX POST request).
     Lấy phản hồi từ bot và trả về dưới dạng JSON.
+
+    Câu trả lời theo từng intent :
+    - Với 1 intent duy nhất :
+        + budget : 
+        + usage : 
+        + detail : 
+    - Với 2 intent :
+        + budget + usage : 
+        + budget + detail :
+        + usage + detail :
+    - Với 3 intent : 
+        + budget + usage + detail : 
     """
     if request.method == 'POST':
         try:
@@ -103,112 +163,263 @@ def send_message(request):
                     'status': 400,
                     'error': 'Message cannot be empty!'
                 }, status=400)
-            
+
             intent_detect_url = urljoin(api_base_url, '/chat/intent_detect/')
             try:
                 resp = requests.post(intent_detect_url, json=data)
                 resp.raise_for_status() 
                 data = resp.json()  
-                intent = data.get('data_intent')  # dict chứa intent_code, intent_meaning
+                intent = data.get('data')  # list intent
+                print(intent)
             except Exception as e:
                 print(f"Error calling send_message API: {e}")   
                 raise e
+            # intent = [{
+            #             'intent_code': 1,
+            #             'intent_meaning': '.....'
+            #         },
+            #         {
+            #             'intent_code': 2,
+            #             'intent_meaning': '.....'
+            #         }]
+            intent_codes = [one_intent['intent_code'] for one_intent in intent]
+            # intent_codes = [1, 2]
+            match len(intent_codes):
+                case 1: # Trường hợp có duy nhất 1
+                    if intent_codes[0] == 0: 
+                        response = llms.invoke(SYSTEM_CONTENT_EXTRACT_BUDGET, user_message)
+                        response = extract_json_from_string(response)
+                        response = json.loads(response) 
 
-            if intent['intent_code'] == 0:
-                response = llms.invoke(SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, user_message)
-                print(response)
-                response = extract_json_from_string(response)
-                response = json.loads(response) # Chuyển về dict
-                data_result = []
-
-                predict_price_url = urljoin(api_base_url, '/chat/predict_price/')
-
-                for item in response:
-                    recommendation = {}
-
-                    persona = item.get("persona", None)
-                    filters = item.get("filters", {})
-
-                    if (not persona) or (not filters):
-                        continue
-
-                    try:
-                        resp = requests.post(predict_price_url, json={
-                            'data': item['prediction_profile']
-                        })
-                        resp.raise_for_status() 
-                        data = resp.json()  
-                        predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
-                    except Exception as e:
-                        print(f"Error calling predict price API: {e}")   
-                        raise e
-                    
-                    # Nếu có giá dự đoán hợp lệ, thêm điều kiện lọc theo giá
-                    if predict_price is not None:
-                        price_range = 5000000  # 5 triệu đồng
+                        min_price = response['budget_min']
+                        max_price = response['budget_max']
                         
-                        # Thêm điều kiện giá vào dictionary `filters`
-                        filters['discounted_price__gte'] = predict_price - price_range
-                        filters['discounted_price__lte'] = predict_price + price_range
-                        
-                        # Đảm bảo giá không bị âm
-                        if filters['discounted_price__gte'] < 0:
-                            filters['discounted_price__gte'] = 0
-                    
-                    try:
-                        # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
-                        laptop_filters = LaptopInfo.objects.filter(**filters)\
-                                                                .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
-                                                                        'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
-                                                                        'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
-                                                                .order_by('discounted_price')
-                        suggested_laptops = list(laptop_filters)
-                        
-                        usage_keys = [
-                            'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
-                            'hoc_tap_van_phong', 'mong_nhe', 'gaming'
-                        ]
-
-                        usage_keys_alias = {
-                            'laptop_sang_tao_noi_dung': 'Sáng tạo nội dung',
-                            'do_hoa_ky_thuat': 'Đồ họa - Kỹ thuật',
-                            'cao_cap_sang_trong': 'Cao cấp - Sang trọng',
-                            'hoc_tap_van_phong': 'Học tập - Văn phòng',
-                            'mong_nhe': 'Mỏng nhẹ',
-                            'gaming': 'Gaming'
+                        filters = {
+                            'discounted_price__gte': min_price,
+                            'discounted_price__lte': max_price
                         }
 
-                        for laptop in suggested_laptops:
-                            laptop['usage_needs'] = [usage_keys_alias[key] for key in usage_keys if laptop.get(key, 0) == 1]
-                        
-                            # (Tùy chọn) Xóa các key cũ để làm sạch output
-                        for key_to_remove in usage_keys:
-                            laptop.pop(key_to_remove, None) # .pop(key, None) sẽ không báo lỗi nếu key không tồn tại
-                        
-                    except Exception as e:
-                        # Bắt các lỗi có thể xảy ra do filter không hợp lệ
-                        print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
-                        suggested_laptops = []
+                        if min_price == max_price:
+                            filters['discounted_price__gte'] = min_price - 2000000 # 2tr
+                            filters['discounted_price__lte'] = max_price + 2000000 # 2tr
+                        if not min_price:
+                            filters['discounted_price__gte'] = max_price - 10000000 # range 10tr
+                        if not max_price:
+                            filters['discounted_price__lte'] = min_price + 10000000 # range 10tr
+
+                        try:
+                            laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                                    .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                            'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                            'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                                    .order_by('discounted_price')
+                            suggested_laptops = list(laptop_filters)
+                            suggested_laptops = change_usage_alias(suggested_laptops) # Thay đổi lại tên từ vd mong_nhe sang Mỏng nhẹ
+                        except Exception as e: 
+                            # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                            print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                            suggested_laptops = []
+
+                        data_result = {
+                            'min_price': filters['discounted_price__gte'],
+                            'max_price': filters['discounted_price__lte'],
+                            'suggested_laptops': suggested_laptops
+                        }
+
+                        return JsonResponse({
+                            'data': {
+                                'intent_codes': [one_intent['intent_code'] for one_intent in intent],
+                                'intent_meanings': [one_intent['intent_meaning'] for one_intent in intent],
+                                'user_message': user_message,
+                                'ai_response': data_result
+                            }
+                        }, status=200)
                     
-                    recommendation['persona'] = persona
-                    recommendation['general_price'] = predict_price
-                    recommendation['suggested_laptops'] = suggested_laptops
+                    if intent_codes[0] == 1:
+                        response = llms.invoke(SYSTEM_CONTENT_EXTRACT_RECOMMEND_USAGE, user_message)
+                        response = extract_json_from_string(response)
+                        response = json.loads(response) 
+                        print(response)
 
-                    data_result.append(recommendation)
+                        # raise ValueError('STOP FOR TESTING')
+                        data_result = {}
 
-            elif intent['intent_code'] == 1:
-                response = llms.invoke(SYSTEM_CONTENT_INTENT_OTHERS, user_message)
-                data_result = response
+                        persona = response.get("persona", None)
+                        filters = response.get("filters", {})
 
-            return JsonResponse({
-                'data': {
-                    **intent,
-                    'user_message': user_message,
-                    'ai_response': data_result
-                }
-            }, status=200)
+                        if (not persona) or (not filters):
+                            raise ValueError('Không tìm được persona, hoặc không có giá trị filters.')
+                        
+                        try:
+                            # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
+                            laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                                    .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                            'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                            'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                                    .order_by('discounted_price')
+                            suggested_laptops = list(laptop_filters)
+                            suggested_laptops = change_usage_alias(suggested_laptops) # Thay đổi lại tên từ vd mong_nhe sang Mỏng nhẹ
+                            
+                        except Exception as e:
+                            # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                            print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                            suggested_laptops = []
+                        
+                        data_result['persona'] = persona
+                        data_result['suggested_laptops'] = suggested_laptops
 
-        
+                        return JsonResponse({
+                            'data': {
+                                'intent_codes': [one_intent['intent_code'] for one_intent in intent],
+                                'intent_meanings': [one_intent['intent_meaning'] for one_intent in intent],
+                                'user_message': user_message,
+                                'ai_response': data_result
+                            }
+                        }, status=200)
+                    
+                    if intent_codes[0] == 2:
+                        response = llms.invoke(SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, user_message)
+                        print(response)
+                        response = extract_json_from_string(response)
+                        response = json.loads(response) # Chuyển về dict
+                        data_result = []
+
+                        predict_price_url = urljoin(api_base_url, '/chat/predict_price/')
+
+                        for item in response:
+                            recommendation = {}
+
+                            persona = item.get("persona", None)
+                            filters = item.get("filters", {})
+
+                            if (not persona) or (not filters):
+                                continue
+
+                            try:
+                                resp = requests.post(predict_price_url, json={
+                                    'data': item['prediction_profile']
+                                })
+                                resp.raise_for_status() 
+                                data = resp.json()  
+                                predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
+                            except Exception as e:
+                                print(f"Error calling predict price API: {e}")   
+                                raise e
+                            
+                            # Nếu có giá dự đoán hợp lệ, thêm điều kiện lọc theo giá
+                            if predict_price is not None:
+                                price_range = 5000000  # 5 triệu đồng
+                                
+                                # Thêm điều kiện giá vào dictionary `filters`
+                                filters['discounted_price__gte'] = predict_price - price_range
+                                filters['discounted_price__lte'] = predict_price + price_range
+                                
+                                # Đảm bảo giá không bị âm
+                                if filters['discounted_price__gte'] < 0:
+                                    filters['discounted_price__gte'] = 0
+                            print('FILTER: ', filters)
+                            try:
+                                # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
+                                laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                                        .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                                'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                                'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                                        .order_by('discounted_price')
+                                suggested_laptops = list(laptop_filters)
+                                suggested_laptops = change_usage_alias(suggested_laptops) # Thay đổi lại tên từ vd mong_nhe sang Mỏng nhẹ
+                                
+                            except Exception as e:
+                                # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                                print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                                suggested_laptops = []
+                            
+                            recommendation['persona'] = persona
+                            recommendation['general_price'] = predict_price
+                            recommendation['suggested_laptops'] = suggested_laptops
+
+                            data_result.append(recommendation)
+
+                        return JsonResponse({
+                            'data': {
+                                'intent_codes': [one_intent['intent_code'] for one_intent in intent],
+                                'intent_meanings': [one_intent['intent_meaning'] for one_intent in intent],
+                                'user_message': user_message,
+                                'ai_response': data_result
+                            }
+                        }, status=200)
+
+                case 2 | 3:
+                    response = llms.invoke(SYSTEM_CONTENT_USER_MESS_EXTRACT_AND_GEN_GROUP, user_message)
+                    print(response)
+                    response = extract_json_from_string(response)
+                    response = json.loads(response) # Chuyển về dict
+                    data_result = []
+                    print('COME HERE???')
+
+                    predict_price_url = urljoin(api_base_url, '/chat/predict_price/')
+
+                    for item in response:
+                        recommendation = {}
+
+                        persona = item.get("persona", None)
+                        filters = item.get("filters", {})
+
+                        if (not persona) or (not filters):
+                            continue
+
+                        try:
+                            resp = requests.post(predict_price_url, json={
+                                'data': item['prediction_profile']
+                            })
+                            resp.raise_for_status() 
+                            data = resp.json()  
+                            predict_price = data.get('predict_price')  # dict chứa intent_code, intent_meaning
+                        except Exception as e:
+                            print(f"Error calling predict price API: {e}")   
+                            raise e
+                        
+                        # Nếu có giá dự đoán hợp lệ, thêm điều kiện lọc theo giá
+                        if predict_price is not None:
+                            price_range = 5000000  # 5 triệu đồng
+                            
+                            # Thêm điều kiện giá vào dictionary `filters`
+                            filters['discounted_price__gte'] = predict_price - price_range
+                            filters['discounted_price__lte'] = predict_price + price_range
+                            
+                            # Đảm bảo giá không bị âm
+                            if filters['discounted_price__gte'] < 0:
+                                filters['discounted_price__gte'] = 0
+                        
+                        try:
+                            # Dùng **filters để "giải nén" dictionary thành các tham số cho .filter()
+                            laptop_filters = LaptopInfo.objects.filter(**filters)\
+                                                                    .values('url_path', 'image', 'root_price', 'discounted_price', 'name', 
+                                                                            'laptop_sang_tao_noi_dung', 'do_hoa_ky_thuat', 'cao_cap_sang_trong', 
+                                                                            'hoc_tap_van_phong', 'mong_nhe', 'gaming')\
+                                                                    .order_by('discounted_price')
+                            suggested_laptops = list(laptop_filters)
+                            suggested_laptops = change_usage_alias(suggested_laptops) # Thay đổi lại tên từ vd mong_nhe sang Mỏng nhẹ
+                            
+                        except Exception as e:
+                            # Bắt các lỗi có thể xảy ra do filter không hợp lệ
+                            print(f"Lỗi khi thực thi filter cho persona '{persona}': {e}")
+                            suggested_laptops = []
+                        
+                        recommendation['persona'] = persona
+                        recommendation['general_price'] = predict_price
+                        recommendation['suggested_laptops'] = suggested_laptops
+
+                        data_result.append(recommendation)
+
+                    return JsonResponse({
+                        'data': {
+                            'intent_codes': [one_intent['intent_code'] for one_intent in intent],
+                            'intent_meanings': [one_intent['intent_meaning'] for one_intent in intent],
+                            'user_message': user_message,
+                            'ai_response': data_result
+                        }
+                    }, status=200)
+
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON format'}, status=400)
         
@@ -283,11 +494,18 @@ def ai_message_html(request):
                 print(f"Error calling send_message API: {e}")   
                 raise e
             
+            # data_md_converted = {
+            #     'intent_code': response['intent_code'],
+            #     'intent_meaning': response['intent_meaning'],
+            #     'user_message': md.convert(response['user_message']),
+            #     'ai_response': response['ai_response'] if response['intent_code'] == 0 else md.convert(response['ai_response'])
+            # }
+
             data_md_converted = {
-                'intent_code': response['intent_code'],
-                'intent_meaning': response['intent_meaning'],
+                'intent_codes': response['intent_codes'],
+                'intent_meanings': response['intent_meanings'],
                 'user_message': md.convert(response['user_message']),
-                'ai_response': response['ai_response'] if response['intent_code'] == 0 else md.convert(response['ai_response'])
+                'ai_response': response['ai_response']
             }
 
             chat_block_html = render_to_string('components/message/ai_message.html', {

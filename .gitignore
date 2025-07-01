@@ -7,5 +7,6 @@ package-lock.json
 # Variable Environment
 .env
 
-# Production build
+# Production
 vite_assets
+staticfiles

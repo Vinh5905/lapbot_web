@@ -12,6 +12,9 @@ class ChatConfig(AppConfig):
         predictor_service.predictor = predictor_service.PricePredictor(predictor_service.default_imputation_values)
         print("Importing predictor service to load ML model...")
 
+        from . import intent_classifier
+        intent_classifier.classifier = intent_classifier.IntentClassifier()
+
         from . import llms_service
         llms_service.llms = llms_service.get_llm_service('gemini-2.5-flash')
         print("Connect to LLMs...")
